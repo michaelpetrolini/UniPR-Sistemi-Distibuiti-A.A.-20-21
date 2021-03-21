@@ -9,11 +9,13 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 
+import assegnamento1.main.messages.Completed;
 import assegnamento1.main.messages.NodeStatistics;
 import assegnamento1.main.messages.RegisterRequest;
 
 public class MasterNode {
 	private ServerSocket server;
+	private List<Socket> nodes = new ArrayList<>();
 	private List<RegisterRequest> nodesMap = new ArrayList<>();
 	private List<NodeStatistics> statsList = new ArrayList<>();
 	private static final int N = 10;
@@ -32,6 +34,7 @@ public class MasterNode {
 			for (int i = 0; i < N; i++) {
 				new CommunicationNode(i, server.getInetAddress().getHostName(), server.getLocalPort()).start();
 				Socket client = server.accept();
+				nodes.add(client);
 				ObjectInputStream is = new ObjectInputStream(new BufferedInputStream(client.getInputStream()));
 				Object obj = is.readObject();
 				if (obj instanceof RegisterRequest) {
@@ -42,8 +45,7 @@ public class MasterNode {
 			System.out.println("Nodes ready. Press Enter to start messages exchange.");
 			System.in.read();
 			System.out.println("Starting to wake up all nodes...");
-			for (int i = 0; i < N; i++) {
-				Socket node = new Socket("localhost", nodesMap.get(i).getPort());
+			for (Socket node: nodes) {
 				ObjectOutputStream os = new ObjectOutputStream(node.getOutputStream());
 				os.writeObject(nodesMap);
 				os.flush();
@@ -58,7 +60,6 @@ public class MasterNode {
 					System.out.println(stat.toString());
 					statsList.add(stat);
 				}
-				c.close();
 			}
 			System.out.println("Finish");
 			

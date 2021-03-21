@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+import assegnamento1.main.messages.Completed;
 import assegnamento1.main.messages.Counter;
 import assegnamento1.main.messages.NodeStatistics;
 import assegnamento1.main.messages.RegisterRequest;
@@ -23,6 +24,8 @@ public class CommunicationNode extends Thread{
 	private List<RegisterRequest> nodesMap;
 	private List<SenderMinion> sMinionsList = new ArrayList<>();
 	private List<ReceiverMinion> cMinionsList = new ArrayList<>();
+	private List<Socket> recClients = new ArrayList<>();
+	private List<Socket> sendClients = new ArrayList<>();
 	
 	public CommunicationNode(int id, String sAddress, int sPort) {
 		try {
@@ -38,11 +41,12 @@ public class CommunicationNode extends Thread{
 	@Override
 	public void run() {
 		try {
-			registerNode();
+			Socket mClient = new Socket(mAddress, mPort);
+			registerNode(mClient);
 			System.out.println("Hi! I'm client " + id + " waiting to start exhanging messages.");
-			Socket client = server.accept();
-			ObjectInputStream is = new ObjectInputStream(new BufferedInputStream(client.getInputStream()));
+			ObjectInputStream is = new ObjectInputStream(new BufferedInputStream(mClient.getInputStream()));
 			Object response = is.readObject();
+			mClient.close();
 			if (response instanceof List) {
 				nodesMap = (List<RegisterRequest>) response;
 				System.out.println("Client " + id + " has started!");
@@ -52,7 +56,9 @@ public class CommunicationNode extends Thread{
 					if(rr.getSender() != id) {
 						try {
 							Socket sendClient = new Socket(rr.getAddress(), rr.getPort());
+							sendClients.add(sendClient);
 							Socket recClient = server.accept();
+							recClients.add(recClient);
 							Counter sendCounter = new Counter();
 							ReceiverMinion cMinion = new ReceiverMinion(id, recClient, stats);
 							cMinionsList.add(cMinion);
@@ -73,6 +79,10 @@ public class CommunicationNode extends Thread{
 				for (ReceiverMinion minion: cMinionsList)
 					minion.join();
 				sendStatistics(stats, sendTime);
+				for (int i = 0; i < sendClients.size(); i++) {
+					sendClients.get(i).close();
+					recClients.get(i).close();
+				}
 			}
 			System.out.println("Client " + id + " finished.");
 		} catch (IOException | ClassNotFoundException | InterruptedException e) {
@@ -89,11 +99,9 @@ public class CommunicationNode extends Thread{
 		mClient.close();
 	}
 
-	private void registerNode() throws UnknownHostException, IOException {
-		Socket mClient = new Socket(mAddress, mPort);
+	private void registerNode(Socket mClient) throws UnknownHostException, IOException {
 		ObjectOutputStream os = new ObjectOutputStream(mClient.getOutputStream());
 		os.writeObject(new RegisterRequest(id, server.getInetAddress().getHostName(), server.getLocalPort()));
 		os.flush();
-		mClient.close();
 	}
 }
