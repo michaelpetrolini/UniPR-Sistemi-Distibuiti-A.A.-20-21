@@ -1,4 +1,4 @@
-package assegnamento1.main;
+package assegnamento1;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -10,9 +10,13 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
 
-import assegnamento1.main.messages.Counter;
-import assegnamento1.main.messages.NodeStatistics;
-import assegnamento1.main.messages.RegisterRequest;
+import assegnamento1.messages.NodeStatistics;
+import assegnamento1.messages.RegisterRequest;
+import assegnamento1.minions.ReceiverMinion;
+import assegnamento1.minions.ResetterMinion;
+import assegnamento1.minions.SenderMinion;
+import assegnamento1.sync.ConcurrentRandom;
+import assegnamento1.sync.Counter;
 
 public class CommunicationNode extends Thread{
 	private int id;
@@ -24,6 +28,11 @@ public class CommunicationNode extends Thread{
 	private List<ReceiverMinion> cMinionsList = new ArrayList<>();
 	private List<Socket> recClients = new ArrayList<>();
 	private List<Socket> sendClients = new ArrayList<>();
+	private ConcurrentRandom random;
+	private NodeStatistics stats;
+
+	
+	private static final int M = 10000;
 	
 	public CommunicationNode(int id, String sAddress, int sPort) {
 		try {
@@ -31,9 +40,27 @@ public class CommunicationNode extends Thread{
 			this.mAddress = sAddress;
 			this.mPort = sPort;
 			this.server = new ServerSocket(0);
+			this.random = new ConcurrentRandom(id);
+			this.stats = new NodeStatistics(id);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+	
+	public int getNodeId() {
+		return this.id;
+	}
+	
+	public int getNMessages() {
+		return M;
+	}
+	
+	public ConcurrentRandom getRandom() {
+		return this.random;
+	}
+	
+	public NodeStatistics getStats() {
+		return this.stats;
 	}
 	
 	@Override
@@ -48,9 +75,7 @@ public class CommunicationNode extends Thread{
 			if (response instanceof List) {
 				nodesMap = (List<RegisterRequest>) response;
 				System.out.println("Client " + id + " has started!");
-				NodeStatistics stats = new NodeStatistics(id);
 				long startTime = System.currentTimeMillis();
-				ConcurrentRandom random = new ConcurrentRandom(id);
 				nodesMap.stream().forEach((rr) -> {
 					if(rr.getSender() != id) {
 						try {
@@ -59,10 +84,10 @@ public class CommunicationNode extends Thread{
 							Socket recClient = server.accept();
 							recClients.add(recClient);
 							Counter sendCounter = new Counter();
-							ReceiverMinion cMinion = new ReceiverMinion(id, recClient, stats);
+							ReceiverMinion cMinion = new ReceiverMinion(this, recClient);
 							cMinionsList.add(cMinion);
-							ResetterMinion rMinion = new ResetterMinion(id, rr.getSender(), sendClient, sendCounter, stats);
-							SenderMinion sMinion = new SenderMinion(id, rr.getSender(), sendClient, sendCounter, rMinion, stats, random);
+							ResetterMinion rMinion = new ResetterMinion(this, rr.getSender(), sendClient, sendCounter);
+							SenderMinion sMinion = new SenderMinion(this, rr.getSender(), sendClient, sendCounter, rMinion);
 							sMinionsList.add(sMinion);
 							cMinion.start();
 							rMinion.start();

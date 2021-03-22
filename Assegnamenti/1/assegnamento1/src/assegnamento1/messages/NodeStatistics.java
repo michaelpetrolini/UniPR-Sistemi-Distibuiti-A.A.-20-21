@@ -1,4 +1,4 @@
-package assegnamento1.main.messages;
+package assegnamento1.messages;
 
 import java.io.Serializable;
 
@@ -7,7 +7,7 @@ public class NodeStatistics implements Serializable{
 	private int id;
 	private long sendTime;
 	private long nSend = 0;
-	private long nResend = 0;
+	private long nLost = 0;
 	private long nReceived = 0;
 	
 	public NodeStatistics(int id) {
@@ -30,12 +30,12 @@ public class NodeStatistics implements Serializable{
 		this.nSend++;
 	}
 
-	public long getnResend() {
-		return nResend;
+	public long getnLost() {
+		return nLost;
 	}
 
-	public synchronized void incrementNResend() {
-		this.nResend++;
+	public synchronized void incrementNLost() {
+		this.nLost++;
 	}
 
 	public long getnReceived() {
@@ -48,6 +48,6 @@ public class NodeStatistics implements Serializable{
 	
 	@Override
 	public String toString() {
-		return "NodeStatistics[ID: " + id + ", sendTime: " + sendTime + ", nSend: " + nSend + ", nResend: " + nResend + ", nReceived: " + nReceived + "]";
+		return "NodeStatistics[ID: " + id + ", sendTime: " + sendTime + ", nSend: " + nSend + ", nLost: " + nLost + ", nReceived: " + nReceived + "]";
 	}
 }

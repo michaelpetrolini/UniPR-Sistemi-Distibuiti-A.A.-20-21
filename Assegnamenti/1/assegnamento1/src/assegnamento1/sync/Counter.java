@@ -1,4 +1,4 @@
-package assegnamento1.main.messages;
+package assegnamento1.sync;
 
 public class Counter {
 	private int counter;

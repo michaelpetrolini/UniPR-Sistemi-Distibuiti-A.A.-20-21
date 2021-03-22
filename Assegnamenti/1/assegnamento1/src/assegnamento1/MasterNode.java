@@ -1,4 +1,4 @@
-package assegnamento1.main;
+package assegnamento1;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -9,9 +9,8 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 
-import assegnamento1.main.messages.Completed;
-import assegnamento1.main.messages.NodeStatistics;
-import assegnamento1.main.messages.RegisterRequest;
+import assegnamento1.messages.NodeStatistics;
+import assegnamento1.messages.RegisterRequest;
 
 public class MasterNode {
 	private ServerSocket server;
@@ -51,6 +50,7 @@ public class MasterNode {
 				os.flush();
 				node.close();
 			}
+			long avgTime = 0;
 			while (statsList.size() < N) {
 				Socket c = server.accept();
 				ObjectInputStream is = new ObjectInputStream(new BufferedInputStream(c.getInputStream()));
@@ -59,8 +59,11 @@ public class MasterNode {
 					NodeStatistics stat = (NodeStatistics) obj;
 					System.out.println(stat.toString());
 					statsList.add(stat);
+					avgTime += stat.getSendTime();
 				}
 			}
+			avgTime /= N;
+			System.out.println("Average execution time: " + avgTime + " milliseconds");
 			System.out.println("Finish");
 			
 		} catch (IOException | ClassNotFoundException e) {

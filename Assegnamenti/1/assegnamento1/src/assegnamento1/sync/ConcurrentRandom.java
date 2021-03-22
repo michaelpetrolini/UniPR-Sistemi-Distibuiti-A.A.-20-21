@@ -1,4 +1,4 @@
-package assegnamento1.main;
+package assegnamento1.sync;
 
 import java.util.Random;
 

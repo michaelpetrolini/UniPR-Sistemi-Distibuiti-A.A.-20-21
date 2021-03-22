@@ -1,4 +1,4 @@
-package assegnamento1.main;
+package assegnamento1.minions;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -6,10 +6,11 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 
-import assegnamento1.main.messages.Completed;
-import assegnamento1.main.messages.Message;
-import assegnamento1.main.messages.NodeStatistics;
-import assegnamento1.main.messages.ResendRequest;
+import assegnamento1.CommunicationNode;
+import assegnamento1.messages.Completed;
+import assegnamento1.messages.Message;
+import assegnamento1.messages.NodeStatistics;
+import assegnamento1.messages.ResendRequest;
 
 public class ReceiverMinion extends Thread{
 	private Socket recClient;
@@ -17,14 +18,15 @@ public class ReceiverMinion extends Thread{
 	private int messagesReceived = 0;
 	private NodeStatistics stats;
 	private boolean lostBefore = false;
+	private int nMessages;
 	
-	private static final int M = 10000;
-
+	private static final int SOCKET_TIMEOUT = 5000;
 	
-	public ReceiverMinion(int id, Socket recClient, NodeStatistics stats) {
-		this.id = id;
+	public ReceiverMinion(CommunicationNode node, Socket recClient) {
+		this.id = node.getNodeId();
 		this.recClient = recClient;
-		this.stats = stats;
+		this.stats = node.getStats();
+		this.nMessages = node.getNMessages();
 	}
 	
 	@Override
@@ -32,8 +34,8 @@ public class ReceiverMinion extends Thread{
 		try {
 			ObjectOutputStream os = new ObjectOutputStream(recClient.getOutputStream());
 			ObjectInputStream is = new ObjectInputStream(new BufferedInputStream(recClient.getInputStream()));
-			recClient.setSoTimeout(1000);
-			while (messagesReceived < M) {
+			recClient.setSoTimeout(SOCKET_TIMEOUT);
+			while (messagesReceived < nMessages) {
 				Object rObj = getSocketObject(is);
 				if (rObj instanceof Message) {
 					stats.incrementNReceived();
@@ -51,10 +53,10 @@ public class ReceiverMinion extends Thread{
 					writeObject(os, new ResendRequest(messagesReceived));
 					//System.out.println("ID " + id + " non ha ricevuto risposte da più di 1 secondo, manda quindi un promemoria");
 				}
-				if (messagesReceived == M)
+				if (messagesReceived == nMessages)
 					writeObject(os, new Completed());
 			}
-			System.out.println("ReceiverMinion " + id + " ha terminato");
+			//System.out.println("ReceiverMinion " + id + " ha terminato");
 		} catch (IOException e) {
 			e.printStackTrace();
 		}

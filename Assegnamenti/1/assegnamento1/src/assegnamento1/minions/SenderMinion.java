@@ -1,12 +1,14 @@
-package assegnamento1.main;
+package assegnamento1.minions;
 
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 
-import assegnamento1.main.messages.Counter;
-import assegnamento1.main.messages.Message;
-import assegnamento1.main.messages.NodeStatistics;
+import assegnamento1.CommunicationNode;
+import assegnamento1.messages.Message;
+import assegnamento1.messages.NodeStatistics;
+import assegnamento1.sync.ConcurrentRandom;
+import assegnamento1.sync.Counter;
 
 public class SenderMinion extends Thread{
 	private Socket sendClient;
@@ -16,18 +18,19 @@ public class SenderMinion extends Thread{
 	private int dest;
 	private NodeStatistics stats;
 	private ConcurrentRandom random;
+	private int nMessages;
 	
-	private static final double LP = -1;
-	private static final int M = 10000;
+	private static final double LP = 0.05;
 	
-	public SenderMinion(int id, int dest, Socket sendClient, Counter messagesSent, ResetterMinion resetter, NodeStatistics stats, ConcurrentRandom random) throws IOException {
+	public SenderMinion(CommunicationNode node, int dest, Socket sendClient, Counter messagesSent, ResetterMinion resetter) throws IOException {
 		this.sendClient = sendClient;
 		this.messagesSent = messagesSent;
 		this.resetter = resetter;
-		this.id = id;
+		this.id = node.getNodeId();
 		this.dest = dest;
-		this.stats = stats;
-		this.random = random;
+		this.stats = node.getStats();
+		this.random = node.getRandom();
+		this.nMessages = node.getNMessages();
 	}
 
 	@Override
@@ -35,7 +38,7 @@ public class SenderMinion extends Thread{
 		try {
 			ObjectOutputStream sOs = new ObjectOutputStream(sendClient.getOutputStream());
 			while(resetter.isAlive()) {
-				if (messagesSent.getCounter() < M) {
+				if (messagesSent.getCounter() < nMessages) {
 					int message	= messagesSent.getIncrementedCounter();
 					if (random.nextFloat() > LP) {
 						sOs.writeObject(new Message(id, message));
@@ -48,7 +51,7 @@ public class SenderMinion extends Thread{
 					stats.incrementNSend();
 				}				
 			}
-			System.out.println("SenderMinion " + id + " ha terminato l'invio dei messaggi a " + dest);
+			//System.out.println("SenderMinion " + id + " ha terminato l'invio dei messaggi a " + dest);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}

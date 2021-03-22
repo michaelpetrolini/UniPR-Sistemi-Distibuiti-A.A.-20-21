@@ -20,4 +20,5 @@ Thumbs.db
 *.ilk
 *.log
 *.bat
+*.class
 .metadata
