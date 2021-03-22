@@ -9,9 +9,7 @@ import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 
-import assegnamento1.main.messages.Completed;
 import assegnamento1.main.messages.Counter;
 import assegnamento1.main.messages.NodeStatistics;
 import assegnamento1.main.messages.RegisterRequest;
@@ -52,6 +50,7 @@ public class CommunicationNode extends Thread{
 				System.out.println("Client " + id + " has started!");
 				NodeStatistics stats = new NodeStatistics(id);
 				long startTime = System.currentTimeMillis();
+				ConcurrentRandom random = new ConcurrentRandom(id);
 				nodesMap.stream().forEach((rr) -> {
 					if(rr.getSender() != id) {
 						try {
@@ -63,7 +62,7 @@ public class CommunicationNode extends Thread{
 							ReceiverMinion cMinion = new ReceiverMinion(id, recClient, stats);
 							cMinionsList.add(cMinion);
 							ResetterMinion rMinion = new ResetterMinion(id, rr.getSender(), sendClient, sendCounter, stats);
-							SenderMinion sMinion = new SenderMinion(id, rr.getSender(), sendClient, sendCounter, rMinion, stats);
+							SenderMinion sMinion = new SenderMinion(id, rr.getSender(), sendClient, sendCounter, rMinion, stats, random);
 							sMinionsList.add(sMinion);
 							cMinion.start();
 							rMinion.start();

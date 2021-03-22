@@ -16,8 +16,9 @@ public class ReceiverMinion extends Thread{
 	private int id;
 	private int messagesReceived = 0;
 	private NodeStatistics stats;
+	private boolean lostBefore = false;
 	
-	private static final int M = 1000;
+	private static final int M = 10000;
 
 	
 	public ReceiverMinion(int id, Socket recClient, NodeStatistics stats) {
@@ -29,30 +30,48 @@ public class ReceiverMinion extends Thread{
 	@Override
 	public void run() {
 		try {
-			ObjectOutputStream rOs = new ObjectOutputStream(recClient.getOutputStream());
-			ObjectInputStream rIs = new ObjectInputStream(new BufferedInputStream(recClient.getInputStream()));
+			ObjectOutputStream os = new ObjectOutputStream(recClient.getOutputStream());
+			ObjectInputStream is = new ObjectInputStream(new BufferedInputStream(recClient.getInputStream()));
+			recClient.setSoTimeout(1000);
 			while (messagesReceived < M) {
-				Object rObj = rIs.readObject();
+				Object rObj = getSocketObject(is);
 				if (rObj instanceof Message) {
 					stats.incrementNReceived();
 					Message m = (Message) rObj;
 					if (m.getMessage() == messagesReceived + 1){
+						lostBefore = false;
 						//System.out.println("ID " + id + " ha ricevuto il messaggio n " + m.getMessage());
 						messagesReceived++;
-					} else if (m.getMessage() > messagesReceived + 1) {
-						rOs.writeObject(new ResendRequest(messagesReceived));
-						rOs.flush();
-						//System.out.println("ID " + id + " non ha ricevuto il messaggio n " + (messagesReceived + 1));
+					} else if (m.getMessage() > messagesReceived + 1 && !lostBefore) {
+						lostBefore = true;
+						writeObject(os, new ResendRequest(messagesReceived));
+						//System.out.println("ID " + id + " non ha ricevuto il messaggio n " + (messagesReceived + 1) + ", invece ha ricevuto " + m.getMessage());
 					}
+				} else {
+					writeObject(os, new ResendRequest(messagesReceived));
+					//System.out.println("ID " + id + " non ha ricevuto risposte da più di 1 secondo, manda quindi un promemoria");
 				}
-				if (messagesReceived == M) {
-					rOs.writeObject(new Completed());
-					rOs.flush();
-				}
+				if (messagesReceived == M)
+					writeObject(os, new Completed());
 			}
 			System.out.println("ReceiverMinion " + id + " ha terminato");
-		} catch (IOException | ClassNotFoundException e) {
+		} catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+
+	private Object getSocketObject(ObjectInputStream rIs) {
+		try {
+			Object rObj = rIs.readObject();
+			return rObj;
+		} catch (ClassNotFoundException | IOException e) {
+			return new Object();
+		}
+	}
+	
+	private void writeObject(ObjectOutputStream os, Object obj) throws IOException {
+		os.writeObject(obj);
+		os.flush();
+		os.reset();
 	}
 }
