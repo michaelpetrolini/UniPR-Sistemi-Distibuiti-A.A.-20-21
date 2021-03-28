@@ -48,6 +48,7 @@ public class NodeStatistics implements Serializable{
 	
 	@Override
 	public String toString() {
-		return "NodeStatistics[ID: " + id + ", sendTime: " + sendTime + ", nSend: " + nSend + ", nLost: " + nLost + ", nReceived: " + nReceived + "]";
+		long total = nSend + nLost + nReceived;
+		return "NodeStatistics[ID: " + id + ", sendTime: " + sendTime + ", nSend: " + nSend + "= " + (float) nSend/total*100 + "%, nLost: " + nLost + "= " + (float) nLost/total*100 + "%, nReceived: " + nReceived + "= " + (float) nReceived/total*100 + "%]";
 	}
 }

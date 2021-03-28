@@ -32,7 +32,7 @@ public class CommunicationNode extends Thread{
 	private NodeStatistics stats;
 
 	
-	private static final int M = 10000;
+	private static final int M = 100000;
 	
 	public CommunicationNode(int id, String sAddress, int sPort) {
 		try {
@@ -108,7 +108,7 @@ public class CommunicationNode extends Thread{
 					recClients.get(i).close();
 				}
 			}
-			System.out.println("Client " + id + " finished.");
+			//System.out.println("Client " + id + " finished.");
 		} catch (IOException | ClassNotFoundException | InterruptedException e) {
 			e.printStackTrace();
 		}

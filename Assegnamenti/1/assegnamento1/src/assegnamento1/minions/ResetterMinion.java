@@ -15,14 +15,12 @@ public class ResetterMinion extends Thread{
 	private Counter messagesSent;
 	private int id;
 	private int destinatario;
-	private NodeStatistics stats;
 	
 	public ResetterMinion(CommunicationNode node, int destinatario, Socket sendClient, Counter messagesSent) throws IOException {
 		this.sendClient = sendClient;
 		this.messagesSent = messagesSent;
 		this.id = node.getNodeId();
 		this.destinatario = destinatario;
-		this.stats = node.getStats();
 	}
 	
 	@Override
@@ -35,7 +33,6 @@ public class ResetterMinion extends Thread{
 					ResendRequest rr = (ResendRequest) sObj;
 					//System.out.println("ID " + id + " riceve da " + destinatario + " la richiesta di rinvio del messaggio n " + (rr.getFirstLost() + 1));
 					messagesSent.setCounter(rr.getFirstLost());
-					stats.incrementNLost();
 				} else
 					break;
 			}

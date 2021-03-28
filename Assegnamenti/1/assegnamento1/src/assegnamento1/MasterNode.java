@@ -51,6 +51,9 @@ public class MasterNode {
 				node.close();
 			}
 			long avgTime = 0;
+			long sentMessages = 0;
+			long receivedMessages = 0;
+			long lostMessages = 0;
 			while (statsList.size() < N) {
 				Socket c = server.accept();
 				ObjectInputStream is = new ObjectInputStream(new BufferedInputStream(c.getInputStream()));
@@ -60,10 +63,17 @@ public class MasterNode {
 					System.out.println(stat.toString());
 					statsList.add(stat);
 					avgTime += stat.getSendTime();
+					sentMessages += stat.getnSend();
+					receivedMessages += stat.getnReceived();
+					lostMessages += stat.getnLost();
 				}
 			}
 			avgTime /= N;
 			System.out.println("Average execution time: " + avgTime + " milliseconds");
+			long total = sentMessages + lostMessages + receivedMessages;
+			System.out.println("Total sent messages: " + sentMessages + ", percentage: " + (float) sentMessages/total*100 + "%");
+			System.out.println("Total received messages: " + receivedMessages + ", percentage: " + (float) receivedMessages/total*100 + "%");
+			System.out.println("Total lost messages: " + lostMessages + ", percentage: " + (float) lostMessages/total*100 + "%");
 			System.out.println("Finish");
 			
 		} catch (IOException | ClassNotFoundException e) {

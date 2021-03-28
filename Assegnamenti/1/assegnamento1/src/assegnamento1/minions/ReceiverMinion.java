@@ -47,11 +47,12 @@ public class ReceiverMinion extends Thread{
 					} else if (m.getMessage() > messagesReceived + 1 && !lostBefore) {
 						lostBefore = true;
 						writeObject(os, new ResendRequest(messagesReceived));
+						stats.incrementNLost();
 						//System.out.println("ID " + id + " non ha ricevuto il messaggio n " + (messagesReceived + 1) + ", invece ha ricevuto " + m.getMessage());
 					}
 				} else {
 					writeObject(os, new ResendRequest(messagesReceived));
-					//System.out.println("ID " + id + " non ha ricevuto risposte da più di 1 secondo, manda quindi un promemoria");
+					//System.out.println("ID " + id + " non ha ricevuto risposte da più di " + SOCKET_TIMEOUT/1000 + " secondi, manda quindi un promemoria");
 				}
 				if (messagesReceived == nMessages)
 					writeObject(os, new Completed());
