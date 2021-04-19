@@ -35,7 +35,7 @@ public class ElectionManagerImpl extends UnicastRemoteObject implements Election
 	@Override
 	public void getElectionMessage(ElectionMessage message) throws RemoteException, NotBoundException, InterruptedException, StateMachineException {
 		if (node.isRunning()) {
-			node.toElecting();
+			node.toCandidate();
 			nCurrentElections++;
 			System.out.println("Node " + node.getId() + " received an ElectionMessage by node " + message.getSender());
 			ElectionManager sender = (ElectionManager) registry.lookup("EM_" + message.getSender());

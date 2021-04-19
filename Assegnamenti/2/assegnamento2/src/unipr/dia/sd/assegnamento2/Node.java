@@ -24,8 +24,8 @@ public class Node extends StateMachine{
 	private static final int N = 5;
 
 	private final State starting = state("STARTING");
+	private final State promoter = state("PROMOTER");
 	private final State candidate = state("CANDIDATE");
-	private final State electing = state("ELECTING");
 	private final State coordinator = state("COORDINATOR");
 	private final State requester = state("REQUESTER");
 	private final State waiter = state("WAITER");
@@ -38,8 +38,6 @@ public class Node extends StateMachine{
 	private final Event informed = event("INFORMED");
 	
 	private int id;
-	private FailureEventToss failure;
-	private WakingEventToss waking;
 	private Registry registry;
 	private ElectionManagerImpl electionManager;
 	
@@ -51,40 +49,38 @@ public class Node extends StateMachine{
 			registry = LocateRegistry.getRegistry();
 		this.electionManager = new ElectionManagerImpl(this, N, registry);
 		this.registry.rebind("EM_" + this.id, electionManager);
+		this.verbose = true;
 		
 	}
 	
 	@Override
 	protected State defineStateMachine() {
 		starting
-			.actions(onStart(), onChange())
+			.actions(onStart())
 			.transition(isLast()).to(coordinator)
 			.transition(informed).to(requester);
-		candidate
-			.actions(onChange(), startElection())
+		promoter
+			.actions(startElection())
+			.transition(election).to(candidate)
 			.transition(elected).to(coordinator)
 			.transition(informed).to(requester)
 			.transition(failed).to(dead);
-		electing
-			.actions(onChange())
+		candidate
 			.transition(elected).to(coordinator)
 			.transition(informed).to(requester)
 			.transition(failed).to(dead);
 		coordinator
-			.actions(onChange(), notifyAllCandidates())
-			.transition(election).to(electing)
+			.actions(notifyAllCandidates())
+			.transition(election).to(candidate)
 			.transition(failed).to(dead);
 		requester
-			.actions(onChange())
-			.transition(election).to(electing)
+			.transition(election).to(candidate)
 			.transition(failed).to(dead);
 		waiter
-			.actions(onChange())
-			.transition(election).to(electing)
+			.transition(election).to(candidate)
 			.transition(failed).to(dead);
 		dead
-			.actions(onChange())
-			.transition(wakeUp).to(candidate);
+			.transition(wakeUp).to(promoter);
 		return starting;
 	}
 
@@ -94,7 +90,7 @@ public class Node extends StateMachine{
             return null;
         }
 
-        for (State state : Arrays.asList(starting, candidate, electing, coordinator, requester, waiter, dead)) {
+        for (State state : Arrays.asList(starting, promoter, candidate, coordinator, requester, waiter, dead)) {
             if (code.equals(state.getCode())) {
                 return state;
             }
@@ -132,15 +128,11 @@ public class Node extends StateMachine{
 	}
 
 	public void toCoordinator() throws StateMachineException {
-		if (current.equals(candidate)) {
-			fire(elected);
-		}
+		fire(elected);
 	}
 
 	public void toRequester() throws StateMachineException {
-		if (current.equals(candidate) || current.equals(starting)) {
-				fire(informed);
-		}	
+		fire(informed);
 	}
 	
 	private Action notifyAllCandidates() {
@@ -155,21 +147,15 @@ public class Node extends StateMachine{
 	
 	private Action onStart() {
 		return () -> {
-			failure = new FailureEventToss(this);
+			FailureEventToss failure = new FailureEventToss(this);
 			failure.start();
-			waking = new WakingEventToss(this);
+			WakingEventToss waking = new WakingEventToss(this);
 			waking.start();
 		};
 	}
 
-	public void toElecting() throws StateMachineException {
+	public void toCandidate() throws StateMachineException {
 		fire(election);
-	}
-	
-	public Action onChange() {
-		return () -> {
-			System.out.println("I'm in state " + current.getCode());
-		};
 	}
 	
 	public Action startElection() {
