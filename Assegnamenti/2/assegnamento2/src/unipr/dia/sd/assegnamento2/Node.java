@@ -10,25 +10,28 @@ import java.rmi.registry.Registry;
 import java.util.Arrays;
 
 import unipr.dia.sd.assegnamento2.election.ElectionManagerImpl;
-import unipr.dia.sd.assegnamento2.failures.FailureEventToss;
-import unipr.dia.sd.assegnamento2.failures.WakingEventToss;
+import unipr.dia.sd.assegnamento2.mutualexception.MutualExceptionManagerImpl;
 import unipr.dia.sd.assegnamento2.statemachine.Action;
 import unipr.dia.sd.assegnamento2.statemachine.Event;
 import unipr.dia.sd.assegnamento2.statemachine.Guard;
 import unipr.dia.sd.assegnamento2.statemachine.State;
 import unipr.dia.sd.assegnamento2.statemachine.StateMachine;
 import unipr.dia.sd.assegnamento2.statemachine.StateMachineException;
+import unipr.dia.sd.assegnamento2.threads.FailureEventToss;
+import unipr.dia.sd.assegnamento2.threads.ResourceEventToss;
+import unipr.dia.sd.assegnamento2.threads.WaitingTimeoutHandler;
+import unipr.dia.sd.assegnamento2.threads.WakingEventToss;
 
 public class Node extends StateMachine{
 
-	private static final int N = 5;
+	private static final int TIMEOUT = 5000;
 
 	private final State starting = state("STARTING");
-	private final State promoter = state("PROMOTER");
 	private final State candidate = state("CANDIDATE");
 	private final State coordinator = state("COORDINATOR");
-	private final State requester = state("REQUESTER");
-	private final State waiter = state("WAITER");
+	private final State running = state("RUNNING");
+	private final State waiting = state("WAITING");
+	private final State holding = state("HOLDING_RESOURCE");
 	private final State dead = state("DEAD");
 	
 	private final Event wakeUp = event("WAKE-UP");
@@ -36,21 +39,29 @@ public class Node extends StateMachine{
 	private final Event election = event("ELECTION");
 	private final Event elected = event("ELECTED");
 	private final Event informed = event("INFORMED");
+	private final Event request = event("REQUEST");
+	private final Event failureDetected = event("FAILURE_DETECTED");
+	private final Event granted = event("ACCESS_GRANTED");
+	private final Event completed = event("COMPLETED");
 	
 	private int id;
+	private int nNodes;
 	private Registry registry;
 	private ElectionManagerImpl electionManager;
+	private MutualExceptionManagerImpl mutualExceptionManager;
 	
-	public Node(int id) throws RemoteException {
+	public Node(int id, int nNodes) throws RemoteException {
 		this.id = id;
+		this.nNodes = nNodes;
 		if (id == 1)
 			registry = LocateRegistry.createRegistry(Registry.REGISTRY_PORT);
 		else
 			registry = LocateRegistry.getRegistry();
-		this.electionManager = new ElectionManagerImpl(this, N, registry);
+		this.electionManager = new ElectionManagerImpl(this, nNodes, registry);
 		this.registry.rebind("EM_" + this.id, electionManager);
-		this.verbose = true;
-		
+		this.mutualExceptionManager = new MutualExceptionManagerImpl(this, registry);
+		this.registry.rebind("MEM_" + this.id, mutualExceptionManager);
+		setVerbose(true);
 	}
 	
 	@Override
@@ -58,29 +69,35 @@ public class Node extends StateMachine{
 		starting
 			.actions(onStart())
 			.transition(isLast()).to(coordinator)
-			.transition(informed).to(requester);
-		promoter
-			.actions(startElection())
+			.transition(informed).to(running);
+		candidate
+			.actions(sendElectionMessages())
 			.transition(election).to(candidate)
 			.transition(elected).to(coordinator)
-			.transition(informed).to(requester)
-			.transition(failed).to(dead);
-		candidate
-			.transition(elected).to(coordinator)
-			.transition(informed).to(requester)
+			.transition(informed).to(running)
 			.transition(failed).to(dead);
 		coordinator
-			.actions(notifyAllCandidates())
+			.actions(notifyAllCandidates(), manageRequests())
 			.transition(election).to(candidate)
 			.transition(failed).to(dead);
-		requester
+		running
 			.transition(election).to(candidate)
+			.transition(request).to(waiting)
 			.transition(failed).to(dead);
-		waiter
+		waiting
+			.actions(sendRequest())
+			.transition(election).to(candidate)
+			.transition(granted).to(holding)
+			.transition(failureDetected).to(candidate)
+			.transition(failed).to(dead);
+		holding
+			.actions(holdResource())
+			.transition(completed()).to(running)
 			.transition(election).to(candidate)
 			.transition(failed).to(dead);
 		dead
-			.transition(wakeUp).to(promoter);
+			.actions(handleFailure())
+			.transition(wakeUp).to(candidate);
 		return starting;
 	}
 
@@ -90,7 +107,7 @@ public class Node extends StateMachine{
             return null;
         }
 
-        for (State state : Arrays.asList(starting, promoter, candidate, coordinator, requester, waiter, dead)) {
+        for (State state : Arrays.asList(starting, candidate, coordinator, running, waiting, holding, dead)) {
             if (code.equals(state.getCode())) {
                 return state;
             }
@@ -101,7 +118,7 @@ public class Node extends StateMachine{
 
 	private Guard isLast() {
 		return () -> {
-			if (id == N)
+			if (id == nNodes)
 				return true;
 			return false;
 		};
@@ -127,12 +144,16 @@ public class Node extends StateMachine{
 		return !current.equals(dead);
 	}
 
-	public void toCoordinator() throws StateMachineException {
+	public void electNode() throws StateMachineException {
 		fire(elected);
 	}
 
-	public void toRequester() throws StateMachineException {
+	public void informSimpleNode() throws StateMachineException {
 		fire(informed);
+	}
+	
+	public void complete() throws StateMachineException {
+		fire(completed);
 	}
 	
 	private Action notifyAllCandidates() {
@@ -151,6 +172,8 @@ public class Node extends StateMachine{
 			failure.start();
 			WakingEventToss waking = new WakingEventToss(this);
 			waking.start();
+			ResourceEventToss resource = new ResourceEventToss(this);
+			resource.start();
 		};
 	}
 
@@ -158,13 +181,86 @@ public class Node extends StateMachine{
 		fire(election);
 	}
 	
-	public Action startElection() {
+	public Action sendElectionMessages() {
 		return () -> {
 			try {
-				electionManager.startElection();
+				electionManager.sendElectionMessages();
 			} catch (RemoteException | NotBoundException | InterruptedException e) {
 				e.printStackTrace();
 			}
+		};
+	}
+	
+	public boolean isCoordinator() {
+		return current.equals(coordinator);
+	}
+
+	public boolean isWaiting() {
+		return current.equals(waiting);
+	}
+	
+	private Action handleFailure() {
+		return () -> {
+			electionManager.reset();
+			mutualExceptionManager.reset();
+		};
+	}
+	
+	public void accessResource() throws StateMachineException {
+		fire(request);
+	}
+	
+	private Action sendRequest() {
+		return () -> {
+			try {
+				mutualExceptionManager.requireResource(electionManager.getCoordinator());
+				WaitingTimeoutHandler handler = new WaitingTimeoutHandler(this, mutualExceptionManager, TIMEOUT);
+				handler.start();
+			} catch (RemoteException | NotBoundException | InterruptedException e) {
+				e.printStackTrace();
+			}
+		};
+	}
+	
+	private Action manageRequests() {
+		return () -> {
+			try {
+				while (true) {
+					mutualExceptionManager.manageRequests();
+					Thread.sleep(100);
+				}
+			} catch (RemoteException | NotBoundException | InterruptedException e) {
+					e.printStackTrace();
+			}
+		};
+	}
+	
+	private Action holdResource() {
+		return () -> {
+			try {
+				mutualExceptionManager.useResource(electionManager.getCoordinator());
+				mutualExceptionManager.returnAccess(electionManager.getCoordinator());
+			} catch (InterruptedException | RemoteException | NotBoundException e) {
+				e.printStackTrace();
+			}
+		};
+	}
+	
+	public void failureDetected() throws StateMachineException {
+		if (isWaiting())
+			System.out.println("E' stato rilevato un problema failure del coordinatore");
+		fire(failureDetected);
+	}
+
+	public void grantAccess() throws StateMachineException {
+		fire(granted);
+	}
+	
+	private Guard completed() {
+		return () -> {
+			if (!mutualExceptionManager.isUsingResource())
+				return true;
+			return false;
 		};
 	}
 }

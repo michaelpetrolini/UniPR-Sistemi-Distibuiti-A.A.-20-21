@@ -1,18 +1,19 @@
-package unipr.dia.sd.assegnamento2.failures;
+package unipr.dia.sd.assegnamento2.threads;
 
 import java.util.Random;
 
 import unipr.dia.sd.assegnamento2.Node;
 import unipr.dia.sd.assegnamento2.statemachine.StateMachineException;
 
-public class WakingEventToss extends Thread{
-	private static final double K = 0.2;
+public class FailureEventToss extends Thread{
+	
+	private static final double H = -1;
 	private static final long DELAY = 1000;
 	
 	private Node node;
 	private Random random;
 	
-	public WakingEventToss(Node node) {
+	public FailureEventToss(Node node) {
 		this.node = node;
 		this.random = new Random();
 	}
@@ -21,8 +22,8 @@ public class WakingEventToss extends Thread{
 	public void run() {
 		try {
 			while (true) {
-				if (random.nextFloat() <= K) 
-					node.wakeUp();
+				if (random.nextFloat() <= H) 
+					node.failed();
 				Thread.sleep(DELAY);
 			}	
 		} catch (StateMachineException | InterruptedException e) {

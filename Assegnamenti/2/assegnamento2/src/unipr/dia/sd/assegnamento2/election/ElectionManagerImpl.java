@@ -16,34 +16,29 @@ public class ElectionManagerImpl extends UnicastRemoteObject implements Election
 
 	private static final long serialVersionUID = 1L;
 
-	private static final long DELAY = 1000;
+	private static final long DELAY = 100;
 	
 	private Node node;
 	private int nNodes;
 	private Registry registry;
-	private int nCurrentElections;
 	private Map<UUID, Integer> nResponses;
+	private int coordinator;
 	
 	public ElectionManagerImpl(Node node, int nNodes, Registry registry) throws RemoteException{
 		this.node = node;
 		this.nNodes = nNodes;
 		this.registry = registry;
-		this.nCurrentElections = 0;
 		this.nResponses = new HashMap<>();
 	}
 
 	@Override
 	public void getElectionMessage(ElectionMessage message) throws RemoteException, NotBoundException, InterruptedException, StateMachineException {
 		if (node.isRunning()) {
-			node.toCandidate();
-			nCurrentElections++;
 			System.out.println("Node " + node.getId() + " received an ElectionMessage by node " + message.getSender());
 			ElectionManager sender = (ElectionManager) registry.lookup("EM_" + message.getSender());
 			sender.replyToElectionMessage(message);
-			
-			if (!nResponses.containsKey(message.getUniqueID())) {
-				sendMessages(message);	
-			}
+			if (!nResponses.containsKey(message.getUniqueID()))
+				node.toCandidate();
 		}
 	}
 
@@ -58,12 +53,11 @@ public class ElectionManagerImpl extends UnicastRemoteObject implements Election
 		Thread.sleep(DELAY);
 		
 		if (nResponses.get(message.getUniqueID()) == 0) {
-			node.toCoordinator();
+			node.electNode();
 		}
-		nResponses.remove(message.getUniqueID());
 	}
 	
-	public void startElection() throws AccessException, RemoteException, NotBoundException, InterruptedException, StateMachineException {
+	public void sendElectionMessages() throws AccessException, RemoteException, NotBoundException, InterruptedException, StateMachineException {
 		ElectionMessage message = new ElectionMessage(0, 0);
 		sendMessages(message);
 	}
@@ -87,9 +81,15 @@ public class ElectionManagerImpl extends UnicastRemoteObject implements Election
 	
 	@Override
 	public void getCoordinationMessage(int id) throws StateMachineException {
-		nCurrentElections--;
-		if (nCurrentElections <= 0) {
-			node.toRequester();
-		}
+		coordinator = id;
+		node.informSimpleNode();
+	}
+
+	public void reset() {
+		nResponses.clear();
+	}
+
+	public int getCoordinator() {
+		return coordinator;
 	}
 }

@@ -8,7 +8,9 @@ public class MainApplication {
 
 	public static void main(String[] args) throws StateMachineException, RemoteException {
 		Integer id = Integer.valueOf(args[0]);
-		Node node = new Node(id);
+		Integer nNodes = Integer.valueOf(args[1]);
+		System.out.println("Starting node " + id + "...");
+		Node node = new Node(id, nNodes);
 		node.init();
 	}
 
