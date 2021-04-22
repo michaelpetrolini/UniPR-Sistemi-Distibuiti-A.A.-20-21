@@ -20,7 +20,7 @@ public class WaitingTimeoutHandler extends Thread{
 	public void run() {
 		try {
 			Thread.sleep(timeout);
-			if(!manager.isUsingResource())
+			if(!manager.isUsingResource() && !node.isDead())
 				node.failureDetected();
 		} catch (InterruptedException | StateMachineException e) {
 			e.printStackTrace();

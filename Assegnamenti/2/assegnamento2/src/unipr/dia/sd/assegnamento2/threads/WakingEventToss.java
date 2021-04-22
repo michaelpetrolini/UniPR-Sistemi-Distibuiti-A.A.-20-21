@@ -6,9 +6,9 @@ import unipr.dia.sd.assegnamento2.Node;
 import unipr.dia.sd.assegnamento2.statemachine.StateMachineException;
 
 public class WakingEventToss extends Thread{
-	private static final double K = 0.2;
-	private static final long DELAY = 1000;
-	
+	private static final double LIFENODE = 0.005;
+	private static final int MINTIME = 100;
+	private static final int MAXTIME = 500;	
 	private Node node;
 	private Random random;
 	
@@ -21,9 +21,10 @@ public class WakingEventToss extends Thread{
 	public void run() {
 		try {
 			while (true) {
-				if (random.nextFloat() <= K) 
+				if (random.nextFloat() <= LIFENODE && node.isDead()) 
 					node.wakeUp();
-				Thread.sleep(DELAY);
+				int delay = random.nextInt(MAXTIME - MINTIME) + MINTIME;
+				Thread.sleep(delay);
 			}	
 		} catch (StateMachineException | InterruptedException e) {
 			System.out.println(e);

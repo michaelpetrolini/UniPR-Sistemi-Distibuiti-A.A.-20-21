@@ -7,8 +7,9 @@ import unipr.dia.sd.assegnamento2.statemachine.StateMachineException;
 
 public class FailureEventToss extends Thread{
 	
-	private static final double H = -1;
-	private static final long DELAY = 1000;
+	private static final double DEATHNODE = 0.002;
+	private static final int MINTIME = 100;
+	private static final int MAXTIME = 500;
 	
 	private Node node;
 	private Random random;
@@ -22,9 +23,10 @@ public class FailureEventToss extends Thread{
 	public void run() {
 		try {
 			while (true) {
-				if (random.nextFloat() <= H) 
+				if (random.nextFloat() <= DEATHNODE && node.isRunning()) 
 					node.failed();
-				Thread.sleep(DELAY);
+				int delay = random.nextInt(MAXTIME - MINTIME) + MINTIME;
+				Thread.sleep(delay);
 			}	
 		} catch (StateMachineException | InterruptedException e) {
 			System.out.println(e);

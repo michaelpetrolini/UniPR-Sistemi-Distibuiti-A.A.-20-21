@@ -35,20 +35,19 @@ public class Node extends StateMachine{
 	private final State dead = state("DEAD");
 	
 	private final Event wakeUp = event("WAKE-UP");
-	private final Event failed = event("FAILED");
+	private final Event failure = event("FAILURE");
 	private final Event election = event("ELECTION");
-	private final Event elected = event("ELECTED");
 	private final Event informed = event("INFORMED");
 	private final Event request = event("REQUEST");
 	private final Event failureDetected = event("FAILURE_DETECTED");
 	private final Event granted = event("ACCESS_GRANTED");
-	private final Event completed = event("COMPLETED");
 	
 	private int id;
 	private int nNodes;
 	private Registry registry;
 	private ElectionManagerImpl electionManager;
 	private MutualExceptionManagerImpl mutualExceptionManager;
+	private boolean failed;
 	
 	public Node(int id, int nNodes) throws RemoteException {
 		this.id = id;
@@ -72,29 +71,33 @@ public class Node extends StateMachine{
 			.transition(informed).to(running);
 		candidate
 			.actions(sendElectionMessages())
-			.transition(election).to(candidate)
-			.transition(elected).to(coordinator)
+			.transition(isElected()).to(coordinator)
 			.transition(informed).to(running)
-			.transition(failed).to(dead);
+			.transition(checkIfDead()).to(dead)
+			.transition(failure).to(dead);
 		coordinator
 			.actions(notifyAllCandidates(), manageRequests())
+			.transition(isCoordinatorAlerted()).to(candidate)
 			.transition(election).to(candidate)
-			.transition(failed).to(dead);
+			.transition(checkIfDead()).to(dead)
+			.transition(failure).to(dead);
 		running
 			.transition(election).to(candidate)
 			.transition(request).to(waiting)
-			.transition(failed).to(dead);
+			.transition(failure).to(dead);
 		waiting
 			.actions(sendRequest())
 			.transition(election).to(candidate)
 			.transition(granted).to(holding)
 			.transition(failureDetected).to(candidate)
-			.transition(failed).to(dead);
+			.transition(checkIfDead()).to(dead)
+			.transition(failure).to(dead);
 		holding
 			.actions(holdResource())
 			.transition(completed()).to(running)
 			.transition(election).to(candidate)
-			.transition(failed).to(dead);
+			.transition(checkIfDead()).to(dead)
+			.transition(failure).to(dead);
 		dead
 			.actions(handleFailure())
 			.transition(wakeUp).to(candidate);
@@ -118,22 +121,18 @@ public class Node extends StateMachine{
 
 	private Guard isLast() {
 		return () -> {
-			if (id == nNodes)
-				return true;
-			return false;
+			return id == nNodes;
 		};
 	}
 	
 	public void failed() throws StateMachineException {
-		if (!current.equals(dead) && !current.equals(starting)) {
-			fire(failed);
-		}
+		failed = true;
+		fire(failure);
 	}
 
 	public void wakeUp() throws StateMachineException {
-		if (current.equals(dead)) {
-			fire(wakeUp);
-		}
+		failed = false;
+		fire(wakeUp);
 	}
 	
 	public int getId() {
@@ -144,18 +143,10 @@ public class Node extends StateMachine{
 		return !current.equals(dead);
 	}
 
-	public void electNode() throws StateMachineException {
-		fire(elected);
-	}
-
 	public void informSimpleNode() throws StateMachineException {
 		fire(informed);
 	}
-	
-	public void complete() throws StateMachineException {
-		fire(completed);
-	}
-	
+
 	private Action notifyAllCandidates() {
 		return () -> {
 			try {
@@ -177,14 +168,14 @@ public class Node extends StateMachine{
 		};
 	}
 
-	public void toCandidate() throws StateMachineException {
+	public void newElection() throws StateMachineException {
 		fire(election);
 	}
 	
-	public Action sendElectionMessages() {
+	private Action sendElectionMessages() {
 		return () -> {
 			try {
-				electionManager.sendElectionMessages();
+				electionManager.sendMessages();
 			} catch (RemoteException | NotBoundException | InterruptedException e) {
 				e.printStackTrace();
 			}
@@ -225,9 +216,8 @@ public class Node extends StateMachine{
 	private Action manageRequests() {
 		return () -> {
 			try {
-				while (true) {
+				while (!electionManager.isCoordinatorAlerted() && !isDead()) {
 					mutualExceptionManager.manageRequests();
-					Thread.sleep(100);
 				}
 			} catch (RemoteException | NotBoundException | InterruptedException e) {
 					e.printStackTrace();
@@ -239,7 +229,7 @@ public class Node extends StateMachine{
 		return () -> {
 			try {
 				mutualExceptionManager.useResource(electionManager.getCoordinator());
-				mutualExceptionManager.returnAccess(electionManager.getCoordinator());
+				mutualExceptionManager.freeResource(electionManager.getCoordinator());
 			} catch (InterruptedException | RemoteException | NotBoundException e) {
 				e.printStackTrace();
 			}
@@ -248,7 +238,7 @@ public class Node extends StateMachine{
 	
 	public void failureDetected() throws StateMachineException {
 		if (isWaiting())
-			System.out.println("E' stato rilevato un problema failure del coordinatore");
+			System.out.println("E' stata rilevata una probabile failure del coordinatore");
 		fire(failureDetected);
 	}
 
@@ -258,9 +248,29 @@ public class Node extends StateMachine{
 	
 	private Guard completed() {
 		return () -> {
-			if (!mutualExceptionManager.isUsingResource())
-				return true;
-			return false;
+			return !mutualExceptionManager.isUsingResource();
+		};
+	}
+	
+	private Guard isCoordinatorAlerted() {
+		return () -> {
+			return electionManager.isCoordinatorAlerted();
+		};
+	}
+	
+	private Guard isElected() {
+		return () -> {
+			return electionManager.getCoordinator() == id;
+		};
+	}
+
+	public boolean isDead() {
+		return failed;
+	}
+	
+	private Guard checkIfDead() {
+		return () -> {
+			return isDead();
 		};
 	}
 }

@@ -15,7 +15,9 @@ import unipr.dia.sd.assegnamento2.statemachine.StateMachineException;
 public class MutualExceptionManagerImpl extends UnicastRemoteObject implements MutualExceptionManager{
 
 	private static final long serialVersionUID = 1L;
-	private static final int MAX_DELAY = 3000;
+	private static final int MAX_DELAY = 5000;
+	private static final int MINTIME = 100;
+	private static final int MAXTIME = 500;	
 	
 	private Node node;
 	private Registry registry;
@@ -35,6 +37,7 @@ public class MutualExceptionManagerImpl extends UnicastRemoteObject implements M
 	public void reset() {
 		requestList.clear();
 		resourceHolded = false;
+		usingResource = false;
 	}
 
 	@Override
@@ -48,14 +51,19 @@ public class MutualExceptionManagerImpl extends UnicastRemoteObject implements M
 			throws RemoteException, NotBoundException, AccessException, InterruptedException, StateMachineException {
 		if (requestList.size() >= 1 && !resourceHolded) {
 			resourceHolded = true;
-			int next = requestList.get(0);
+			int next = requestList.remove(0);
 			MutualExceptionManager manager = (MutualExceptionManager) registry.lookup("MEM_" + next);
 			System.out.println("Do il controllo della risorsa a " + next);
 			manager.accessGranted();
-			Thread.sleep(MAX_DELAY);
+			
+			long start = System.currentTimeMillis();
+			long end = System.currentTimeMillis();
+			while (resourceIsStillBeingHolded() && end - start <= MAX_DELAY)
+				end = System.currentTimeMillis();
+			
 			if (resourceIsStillBeingHolded())
 				System.out.println("Sembra che il nodo " + next + " sia fallito mentre controllava la risorsa, gliela ritiro");
-				manageFailure();
+				manageFailure(next);
 		}
 	}
 
@@ -69,15 +77,20 @@ public class MutualExceptionManagerImpl extends UnicastRemoteObject implements M
 	}
 	
 	public void useResource(int coordinatorId) throws InterruptedException, StateMachineException, AccessException, RemoteException, NotBoundException {
-		int waiting = random.nextInt(MAX_DELAY) + 1;
-		Thread.sleep(waiting);
-		usingResource = false;
+		int waiting = random.nextInt(MAXTIME - MINTIME) + MINTIME;
+
+		long start = System.currentTimeMillis();
+		long end = System.currentTimeMillis();
+		while (end - start <= waiting && !node.isDead())
+			end = System.currentTimeMillis();
+		
+		if (!node.isDead())
+			usingResource = false;
 	}
 
 	@Override
-	public void returnAccess() throws RemoteException, NotBoundException, InterruptedException, StateMachineException {
+	public void returnAccess(int id) throws RemoteException, NotBoundException, InterruptedException, StateMachineException {
 		System.out.println("La risorsa è stata restituita");
-		requestList.remove(0);
 		resourceHolded = false;
 	}
 	
@@ -91,15 +104,14 @@ public class MutualExceptionManagerImpl extends UnicastRemoteObject implements M
 		return resourceHolded;
 	}
 
-	private void manageFailure() {
-		requestList.remove(0);
+	private void manageFailure(int id) {
 		resourceHolded = false;
 	}
 	
-	public void returnAccess(int coordinatorId) throws AccessException, RemoteException, NotBoundException, InterruptedException, StateMachineException {
+	public void freeResource(int coordinatorId) throws AccessException, RemoteException, NotBoundException, InterruptedException, StateMachineException {
 		System.out.println("Restituisco il controllo della risorsa al coordinatore " + coordinatorId);
 		MutualExceptionManager coordinator = (MutualExceptionManager) registry.lookup("MEM_" + coordinatorId);
-		coordinator.returnAccess();
+		coordinator.returnAccess(node.getId());
 	}
 
 	public boolean isUsingResource() {

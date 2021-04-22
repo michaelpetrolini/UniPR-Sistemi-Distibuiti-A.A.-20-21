@@ -12,5 +12,5 @@ public interface MutualExceptionManager extends Remote{
 	
 	void accessGranted() throws RemoteException, InterruptedException, StateMachineException, NotBoundException;
 	
-	void returnAccess() throws RemoteException, NotBoundException, InterruptedException, StateMachineException;
+	void returnAccess(int id) throws RemoteException, NotBoundException, InterruptedException, StateMachineException;
 }
