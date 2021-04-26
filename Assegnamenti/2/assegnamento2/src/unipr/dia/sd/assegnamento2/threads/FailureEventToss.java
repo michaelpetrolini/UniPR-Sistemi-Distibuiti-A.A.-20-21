@@ -23,7 +23,7 @@ public class FailureEventToss extends Thread{
 	public void run() {
 		try {
 			while (true) {
-				if (random.nextFloat() <= DEATHNODE && node.isRunning()) 
+				if (random.nextFloat() <= DEATHNODE && !node.isDead()) 
 					node.failed();
 				int delay = random.nextInt(MAXTIME - MINTIME) + MINTIME;
 				Thread.sleep(delay);
