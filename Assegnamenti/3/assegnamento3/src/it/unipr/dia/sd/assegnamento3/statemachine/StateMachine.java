@@ -1,6 +1,6 @@
-package unipr.dia.sd.assegnamento3.statemachine;
+package it.unipr.dia.sd.assegnamento3.statemachine;
 
-import static unipr.dia.sd.assegnamento3.statemachine.Event.*;
+import static it.unipr.dia.sd.assegnamento3.statemachine.Event.*;
 
 public abstract class StateMachine {
 

@@ -1,4 +1,4 @@
-package unipr.dia.sd.assegnamento3.statemachine;
+package it.unipr.dia.sd.assegnamento3.statemachine;
 
 public interface Action {
 	
