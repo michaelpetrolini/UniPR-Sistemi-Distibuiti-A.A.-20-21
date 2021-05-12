@@ -21,4 +21,6 @@ Thumbs.db
 *.log
 *.bat
 *.class
+*.jar
 .metadata
+apache-activemq
