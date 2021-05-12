@@ -96,7 +96,7 @@ public class Coordinator extends StateMachine implements MessageListener {
 	private Action sendVote() {
 		return () -> {			
 			try {
-				System.out.println("Coordinator " + id + " is sending his vote to client " + clientId);
+				System.out.println("Sending vote to client " + clientId);
 				QueueSession session = connection.createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
 				Queue queue = session.createQueue("client_" + clientId);
 				QueueSender sender = session.createSender(queue);
