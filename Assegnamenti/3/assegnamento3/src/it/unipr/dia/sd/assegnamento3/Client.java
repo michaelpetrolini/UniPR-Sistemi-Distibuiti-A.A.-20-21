@@ -134,10 +134,8 @@ public class Client extends StateMachine {
 								(currentAction.equals(ActionType.WRITE) && voters.size() < nCoordinators)) {
 							System.out.println("Received vote from coordinator " + coordinatorId);
 							voters.add(coordinatorId);
-							if (currentAction.equals(ActionType.READ) && voters.size() == 1) {
-								accessGranted = true;
-							}
-							if (currentAction.equals(ActionType.WRITE) && voters.size() == nCoordinators) {
+							if ((currentAction.equals(ActionType.READ) && voters.size() == 1) || 
+									(currentAction.equals(ActionType.WRITE) && voters.size() == nCoordinators)) {
 								accessGranted = true;
 							}
 						} else {

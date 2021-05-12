@@ -32,11 +32,11 @@ public class Coordinator extends StateMachine implements MessageListener {
 	private final State waiting = state("WAITING");
 	
 	private final Event request = event("REQUEST");
+	private final Event release = event("RELEASE");
 	
 	private String id;
-	private Integer clientId;
+	private String clientId;
 	private ActiveMQConnection connection;
-	private QueueReceiver receiver;
 	
 	public Coordinator(String id, int nClients) throws JMSException {
 		this.id = id;
@@ -58,17 +58,17 @@ public class Coordinator extends StateMachine implements MessageListener {
 		QueueSession queueSession = connection.createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
 		Queue queue = queueSession.createQueue("coordinator_" + id);
 						
-		receiver = queueSession.createReceiver(queue);
+		QueueReceiver receiver = queueSession.createReceiver(queue);
+		receiver.setMessageListener(this);
 	}
 	
 	@Override
 	protected State defineStateMachine() {
 		free
-			.actions(receive())
 			.transition(request).to(waiting);
 		waiting
-			.actions(sendVote(), waitForRelease())
-			.transition().to(free);
+			.actions(sendVote())
+			.transition(release).to(free);
 		return free;
 	}
 
@@ -85,12 +85,6 @@ public class Coordinator extends StateMachine implements MessageListener {
         }
 
         return null;
-	}
-
-	private Action receive() {
-		return () -> {
-			
-		};
 	}
 	
 	private Action sendVote() {
@@ -110,32 +104,18 @@ public class Coordinator extends StateMachine implements MessageListener {
 			} 
 		};
 	}
-	
-	private Action waitForRelease() {
-		return () -> {
-			try {								  
-				while (true) {
-					TextMessage message = (TextMessage) receiver.receive();
-				    if (Integer.valueOf(message.getText()) == clientId){
-				    	System.out.println("Received release from client " + clientId);
-				    	break;
-				    }
-				}
-			      
-			} catch (JMSException e) {
-				e.printStackTrace();
-			}
-		};
-	}
 
 	@Override
 	public void onMessage(Message m) {
 		try {
+			TextMessage message = (TextMessage) m;
 			if (current.equals(free)) {
-				TextMessage message = (TextMessage) m;
 				System.out.println("Request from client " + message.getText());
-				clientId = Integer.valueOf(message.getText());
+				clientId = message.getText();
 				fire(request);
+			} else if (current.equals(waiting) && clientId.equals(message.getText())) {
+		    	System.out.println("Received release from client " + clientId);
+		    	fire(release);
 			}
 		} catch (JMSException | StateMachineException e) {
 			e.printStackTrace();
